@@ -35,7 +35,7 @@ upload-kubeconfig:
 
 helm:
   image: 
-    name: alpine/k8s:latest
+    name: alpine/k8s:1.33.1
     entrypoint: [""]
   stage: helm
   script:
