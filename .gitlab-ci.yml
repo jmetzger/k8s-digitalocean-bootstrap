@@ -9,7 +9,9 @@ variables:
   HELM_ROOT: "helm/ingress"
 
 terraform:
-  image: hashicorp/terraform:1.8
+  image: 
+    name: hashicorp/terraform:1.8
+    entrypoint: [""]
   stage: deploy
   script:
     - export TF_VAR_do_token=$DIGITALOCEAN_ACCESS_TOKEN
