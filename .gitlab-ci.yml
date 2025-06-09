@@ -1,0 +1,69 @@
+stages:
+  - terraform
+  - helm
+  - destroy
+
+variables:
+  TF_ROOT: "terraform"
+  HELM_ROOT: "helm/ingress"
+
+terraform:
+  image: hashicorp/terraform:1.8
+  stage: terraform
+  script:
+    - cd $TF_ROOT
+    - terraform init
+    - terraform apply -auto-approve
+    - terraform output -raw kubeconfig > kubeconfig
+  artifacts:
+    paths:
+      - terraform/kubeconfig
+    expire_in: 1 hour
+
+helm:
+  image: alpine/helm:3.14.0
+  stage: helm
+  script:
+    - apk add curl bash
+    - export KUBECONFIG=$CI_PROJECT_DIR/terraform/kubeconfig
+    - helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+    - helm repo add jetstack https://charts.jetstack.io
+    - helm repo update
+    - helm upgrade --install ingress ingress-nginx/ingress-nginx \
+        --namespace ingress-nginx \
+        --create-namespace \
+        -f $HELM_ROOT/values.yaml
+    - helm upgrade --install cert-manager jetstack/cert-manager \
+        --namespace cert-manager \
+        --create-namespace \
+        -f helm/cert-manager-values.yaml
+    - kubectl create namespace testapp || true
+    - kubectl apply -f helm/testapp/deployment.yaml
+    - kubectl apply -f helm/testapp/service.yaml
+    - kubectl apply -f helm/testapp/clusterissuer.yaml
+    - kubectl apply -f helm/testapp/ingress.yaml
+  needs: ["terraform"]
+
+destroy:
+  image: hashicorp/terraform:1.8
+  stage: destroy
+  script:
+    - cd terraform
+    - terraform init
+    - terraform destroy -auto-approve
+  when: manual
+  only:
+    - main
+
+
+upload-kubeconfig:
+  image: curlimages/curl
+  stage: post
+  script:
+    - echo "Uploading kubeconfig as GitLab CI/CD variable..."
+    - |
+      curl --request POST         --header "PRIVATE-TOKEN: $GITLAB_PAT_KUBECONFIG"         --form "key=KUBECONFIG"         --form "value=$(cat terraform/kubeconfig)"         --form "masked=true"         https://gitlab.com/api/v4/projects/$CI_PROJECT_ID/variables
+  needs: ["terraform"]
+  when: manual
+  only:
+    - main
