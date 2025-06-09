@@ -44,14 +44,8 @@ helm:
     - helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
     - helm repo add jetstack https://charts.jetstack.io
     - helm repo update
-    - helm upgrade --install ingress ingress-nginx/ingress-nginx \
-        --namespace ingress-nginx \
-        --create-namespace \
-        -f $HELM_ROOT/values.yaml
-    - helm upgrade --install cert-manager jetstack/cert-manager \
-        --namespace cert-manager \
-        --create-namespace \
-        -f helm/cert-manager-values.yaml
+    - helm upgrade --install ingress ingress-nginx/ingress-nginx --namespace ingress-nginx --create-namespace -f $HELM_ROOT/values.yaml
+    - helm upgrade --install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace -f helm/cert-manager-values.yaml
     - kubectl create namespace testapp || true
     - kubectl apply -f helm/testapp/deployment.yaml
     - kubectl apply -f helm/testapp/service.yaml
