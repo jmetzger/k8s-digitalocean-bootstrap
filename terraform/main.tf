@@ -25,10 +25,10 @@ resource "digitalocean_kubernetes_cluster" "main" {
   }
 }
 
-resource "digitalocean_record" "wildcard_auto" {
-  domain = "do.t3isp.de"
-  type   = "A"
-  name   = "auto"
-  value  = digitalocean_kubernetes_cluster.main.endpoint
-  ttl    = 60
-}
+#resource "digitalocean_record" "wildcard_auto" {
+#  domain = "do.t3isp.de"
+#  type   = "A"
+#  name   = "auto"
+#  value  = digitalocean_kubernetes_cluster.main.endpoint
+#  ttl    = 60
+#}
