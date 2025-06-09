@@ -1,6 +1,6 @@
 terraform {
 
-  required_providers = {
+  required_providers {
     digitalocean = {
       source = "digitalocean/digitalocean"
     }
