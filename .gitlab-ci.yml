@@ -1,5 +1,5 @@
 stages:
-  - terraform
+  - deploy
   - helm
   - destroy
 
@@ -9,8 +9,9 @@ variables:
 
 terraform:
   image: hashicorp/terraform:1.8
-  stage: terraform
+  stage: deploy
   script:
+    - export TF_VAR_do_token=$DIGITALOCEAN_ACCESS_TOKEN
     - cd $TF_ROOT
     - terraform init
     - terraform apply -auto-approve
@@ -19,6 +20,19 @@ terraform:
     paths:
       - terraform/kubeconfig
     expire_in: 1 hour
+
+upload-kubeconfig:
+  image: curlimages/curl
+  stage: deploy
+  script:
+    - echo "Uploading kubeconfig as GitLab CI/CD variable..."
+    - |
+      curl --request POST         --header "PRIVATE-TOKEN: $GITLAB_PAT_KUBECONFIG"         --form "key=KUBECONFIG"         --form "value=$(cat terraform/kubeconfig)"         --form "masked=true"         https://gitlab.com/api/v4/projects/$CI_PROJECT_ID/variables
+  needs: ["terraform"]
+  when: manual
+  only:
+    - main
+
 
 helm:
   image: alpine/helm:3.14.0
@@ -55,15 +69,3 @@ destroy:
   only:
     - main
 
-
-upload-kubeconfig:
-  image: curlimages/curl
-  stage: post
-  script:
-    - echo "Uploading kubeconfig as GitLab CI/CD variable..."
-    - |
-      curl --request POST         --header "PRIVATE-TOKEN: $GITLAB_PAT_KUBECONFIG"         --form "key=KUBECONFIG"         --form "value=$(cat terraform/kubeconfig)"         --form "masked=true"         https://gitlab.com/api/v4/projects/$CI_PROJECT_ID/variables
-  needs: ["terraform"]
-  when: manual
-  only:
-    - main
