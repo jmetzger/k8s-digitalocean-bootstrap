@@ -35,7 +35,7 @@ upload-kubeconfig:
 
 helm:
   image: 
-    name: alpine/helm:3.14.0
+    name: alpine/k8s:latest
     entrypoint: [""]
   stage: helm
   script:
@@ -46,6 +46,9 @@ helm:
     - helm repo update
     - helm upgrade --install ingress ingress-nginx/ingress-nginx --namespace ingress-nginx --create-namespace -f $HELM_ROOT/values.yaml
     - helm upgrade --install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace -f helm/cert-manager-values.yaml
+    - echo "Warte auf LoadBalancer-IP..."
+    - LB_IP=$(kubectl get svc ingress-ingress-nginx-controller -n ingress-nginx -o json --watch | jq -r 'select(.status.loadBalancer.ingress[0].ip != null) | .status.loadBalancer.ingress[0].ip' | head -n 1)
+    - echo "$LB_IP" > lb_ip.txt
   needs: ["terraform"]
 
 destroy:
