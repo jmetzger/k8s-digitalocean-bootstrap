@@ -42,18 +42,57 @@ jobs:
     - name: Set Kubernetes Version
       run: |
         cd $TF_ROOT
+        # Install doctl
+        curl -sL https://github.com/digitalocean/doctl/releases/download/v1.104.0/doctl-1.104.0-linux-amd64.tar.gz | tar -xzv
+        sudo mv doctl /usr/local/bin
+        doctl auth init -t ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+        
+        # Get available versions
+        AVAILABLE_VERSIONS=$(doctl kubernetes options versions -o json | jq -r '.[].slug')
+        DEFAULT_VERSION=$(grep 'default.*=' terraform/variables.tf | grep -o '"[^"]*"' | tr -d '"')
+        
         if [ "${{ github.event.inputs.upgrade_k8s }}" = "true" ]; then
-          echo "🔄 Fetching latest Kubernetes version..."
-          # Install doctl if not available
-          curl -sL https://github.com/digitalocean/doctl/releases/download/v1.104.0/doctl-1.104.0-linux-amd64.tar.gz | tar -xzv
-          sudo mv doctl /usr/local/bin
-          doctl auth init -t ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
-          LATEST_VERSION=$(doctl kubernetes options versions -o json | jq -r '.[0].slug')
-          echo "📦 Latest K8s version: $LATEST_VERSION"
-          echo "TF_VAR_k8s_version=$LATEST_VERSION" >> $GITHUB_ENV
+          echo "🔄 Using latest Kubernetes version..."
+          SELECTED_VERSION=$(echo "$AVAILABLE_VERSIONS" | head -n 1)
+          echo "📦 Latest K8s version: $SELECTED_VERSION"
         else
-          echo "📌 Using default Kubernetes version from variables.tf"
+          echo "🔍 Checking if default version $DEFAULT_VERSION is available..."
+          if echo "$AVAILABLE_VERSIONS" | grep -q "^$DEFAULT_VERSION$"; then
+            echo "✅ Default version $DEFAULT_VERSION is available"
+            SELECTED_VERSION=$DEFAULT_VERSION
+          else
+            echo "⚠️ Default version $DEFAULT_VERSION not available"
+            echo "🔄 Finding next higher version..."
+            # Extract version numbers for comparison
+            DEFAULT_MAJOR=$(echo $DEFAULT_VERSION | cut -d'.' -f1)
+            DEFAULT_MINOR=$(echo $DEFAULT_VERSION | cut -d'.' -f2)
+            DEFAULT_PATCH=$(echo $DEFAULT_VERSION | cut -d'.' -f3 | cut -d'-' -f1)
+            
+            SELECTED_VERSION=""
+            while IFS= read -r version; do
+              V_MAJOR=$(echo $version | cut -d'.' -f1)
+              V_MINOR=$(echo $version | cut -d'.' -f2)  
+              V_PATCH=$(echo $version | cut -d'.' -f3 | cut -d'-' -f1)
+              
+              # Check if version is higher or equal
+              if [ "$V_MAJOR" -gt "$DEFAULT_MAJOR" ] || \
+                 ([ "$V_MAJOR" -eq "$DEFAULT_MAJOR" ] && [ "$V_MINOR" -gt "$DEFAULT_MINOR" ]) || \
+                 ([ "$V_MAJOR" -eq "$DEFAULT_MAJOR" ] && [ "$V_MINOR" -eq "$DEFAULT_MINOR" ] && [ "$V_PATCH" -ge "$DEFAULT_PATCH" ]); then
+                SELECTED_VERSION=$version
+                break
+              fi
+            done <<< "$(echo "$AVAILABLE_VERSIONS" | sort -V)"
+            
+            if [ -z "$SELECTED_VERSION" ]; then
+              echo "❌ No suitable version found, using latest"
+              SELECTED_VERSION=$(echo "$AVAILABLE_VERSIONS" | head -n 1)
+            fi
+            echo "🎯 Selected version: $SELECTED_VERSION"
+          fi
         fi
+        
+        echo "TF_VAR_k8s_version=$SELECTED_VERSION" >> $GITHUB_ENV
+        echo "📌 Using Kubernetes version: $SELECTED_VERSION"
     
     - name: Terraform Apply
       run: |
