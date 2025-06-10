@@ -149,9 +149,6 @@ jobs:
         KUBECONFIG_CONTENT=$(terraform output -raw kubeconfig | base64 -w 0)
         echo "📦 Storing kubeconfig as repository variable..."
         
-        # Use gh CLI with explicit token authentication
-        echo "${{ secrets.GH_TOKEN }}" | gh auth login --with-token
-        
         if gh variable set KUBECONFIG_B64 --body "$KUBECONFIG_CONTENT" --repo "${{ github.repository }}"; then
           echo "✅ Kubeconfig stored as KUBECONFIG_B64 variable"
         else
@@ -161,6 +158,7 @@ jobs:
         fi
       env:
         TF_VAR_do_token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+        GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
   helm:
     name: Deploy Helm Charts
