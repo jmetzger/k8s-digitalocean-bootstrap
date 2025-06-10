@@ -147,7 +147,7 @@ jobs:
         echo "Erstelle Testapp Namespace..."
         kubectl create namespace testapp --dry-run=client -o yaml | kubectl apply -f -
         echo "Deploye Testapp..."
-        kubectl apply -f helm/testapp/
+        kubectl apply -f manifests/testapp/
 
   destroy:
     name: Destroy Infrastructure
