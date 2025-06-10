@@ -3,6 +3,10 @@ name: Deploy Helm Charts Only
 on:
   workflow_dispatch:
 
+concurrency:
+  group: k8s-deployment-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   HELM_ROOT: helm/ingress
 

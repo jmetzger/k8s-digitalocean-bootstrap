@@ -1,0 +1,48 @@
+name: Kubectl Access
+
+on:
+  workflow_dispatch:
+    inputs:
+      kubectl_command:
+        description: 'kubectl command to execute (e.g. "get pods -A")'
+        required: true
+        default: 'get nodes'
+        type: string
+
+concurrency:
+  group: k8s-read-only-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  kubectl:
+    name: Execute kubectl command
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Kubeconfig
+      run: |
+        mkdir -p terraform
+        if [ -n "${{ vars.KUBECONFIG_B64 }}" ]; then
+          echo "📦 Using stored kubeconfig from repository variables..."
+          echo "${{ vars.KUBECONFIG_B64 }}" | base64 -d > terraform/kubeconfig
+        else
+          echo "❌ No stored kubeconfig found! Run full deployment first."
+          exit 1
+        fi
+    
+    - name: Setup kubectl
+      uses: azure/setup-kubectl@v4
+      with:
+        version: 'latest'
+    
+    - name: Execute kubectl command
+      run: |
+        export KUBECONFIG=$GITHUB_WORKSPACE/terraform/kubeconfig
+        echo "🚀 Executing: kubectl ${{ github.event.inputs.kubectl_command }}"
+        echo "----------------------------------------"
+        kubectl ${{ github.event.inputs.kubectl_command }}
+        echo "----------------------------------------"
+        echo "✅ Command completed"
