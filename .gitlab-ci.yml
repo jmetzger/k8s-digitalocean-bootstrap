@@ -48,7 +48,16 @@ helm:
     - helm upgrade --install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace -f helm/cert-manager-values.yaml
     - echo "Warte auf LoadBalancer-IP..."
     - LB_IP=$(kubectl get svc ingress-ingress-nginx-controller -n ingress-nginx -o json --watch | jq -r 'select(.status.loadBalancer.ingress[0].ip != null) | .status.loadBalancer.ingress[0].ip' | head -n 1)
+    - echo "LoadBalancer IP: $LB_IP"
     - echo "$LB_IP" > lb_ip.txt
+    - echo "Erstelle DNS-Record für *.auto.do.t3isp.de..."
+    - |
+      curl -X POST -H "Content-Type: application/json" \
+        -H "Authorization: Bearer $DIGITALOCEAN_ACCESS_TOKEN" \
+        -d "{\"type\":\"A\",\"name\":\"*.auto\",\"data\":\"$LB_IP\",\"ttl\":300}" \
+        "https://api.digitalocean.com/v2/domains/t3isp.de/records"
+    - echo "Deploye Testapp..."
+    - kubectl apply -f helm/testapp/
   needs: ["terraform"]
 
 destroy:

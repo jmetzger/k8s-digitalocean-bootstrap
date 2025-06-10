@@ -1,0 +1,166 @@
+name: Deploy DigitalOcean Kubernetes
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  TF_ROOT: terraform
+  HELM_ROOT: helm/ingress
+
+jobs:
+  terraform:
+    name: Deploy Infrastructure
+    runs-on: ubuntu-latest
+    outputs:
+      kubeconfig: ${{ steps.tf-output.outputs.kubeconfig }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: 1.8.0
+        terraform_wrapper: false
+    
+    - name: Terraform Init
+      run: |
+        cd $TF_ROOT
+        terraform init
+      env:
+        TF_VAR_do_token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+    
+    - name: Terraform Apply
+      run: |
+        cd $TF_ROOT
+        terraform apply -auto-approve
+      env:
+        TF_VAR_do_token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+    
+    - name: Get Kubeconfig
+      id: tf-output
+      run: |
+        cd $TF_ROOT
+        terraform output -raw kubeconfig > kubeconfig
+        echo "kubeconfig<<EOF" >> $GITHUB_OUTPUT
+        cat kubeconfig >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+      env:
+        TF_VAR_do_token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+    
+    - name: Upload Kubeconfig Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: kubeconfig
+        path: terraform/kubeconfig
+        retention-days: 1
+
+  helm:
+    name: Deploy Helm Charts
+    runs-on: ubuntu-latest
+    needs: terraform
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Download Kubeconfig
+      uses: actions/download-artifact@v4
+      with:
+        name: kubeconfig
+        path: terraform/
+    
+    - name: Setup Helm
+      uses: azure/setup-helm@v4
+      with:
+        version: 'latest'
+    
+    - name: Setup kubectl
+      uses: azure/setup-kubectl@v4
+      with:
+        version: 'latest'
+    
+    - name: Deploy Ingress Controller
+      run: |
+        export KUBECONFIG=$GITHUB_WORKSPACE/terraform/kubeconfig
+        helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+        helm repo add jetstack https://charts.jetstack.io
+        helm repo update
+        helm upgrade --install ingress ingress-nginx/ingress-nginx \
+          --namespace ingress-nginx --create-namespace \
+          -f $HELM_ROOT/values.yaml
+    
+    - name: Deploy Cert-Manager
+      run: |
+        export KUBECONFIG=$GITHUB_WORKSPACE/terraform/kubeconfig
+        helm upgrade --install cert-manager jetstack/cert-manager \
+          --namespace cert-manager --create-namespace \
+          -f helm/cert-manager-values.yaml
+    
+    - name: Wait for LoadBalancer and Create DNS Record
+      run: |
+        export KUBECONFIG=$GITHUB_WORKSPACE/terraform/kubeconfig
+        echo "Warte auf LoadBalancer-IP..."
+        
+        # Wait for LoadBalancer IP (max 5 minutes)
+        timeout=300
+        while [ $timeout -gt 0 ]; do
+          LB_IP=$(kubectl get svc ingress-ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
+          if [ -n "$LB_IP" ] && [ "$LB_IP" != "null" ]; then
+            echo "LoadBalancer IP: $LB_IP"
+            break
+          fi
+          echo "Waiting for LoadBalancer IP... ($timeout seconds remaining)"
+          sleep 10
+          timeout=$((timeout-10))
+        done
+        
+        if [ -z "$LB_IP" ] || [ "$LB_IP" = "null" ]; then
+          echo "Error: LoadBalancer IP not available after timeout"
+          exit 1
+        fi
+        
+        echo "Erstelle DNS-Record für *.auto.do.t3isp.de..."
+        curl -X POST -H "Content-Type: application/json" \
+          -H "Authorization: Bearer ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}" \
+          -d "{\"type\":\"A\",\"name\":\"*.auto\",\"data\":\"$LB_IP\",\"ttl\":300}" \
+          "https://api.digitalocean.com/v2/domains/t3isp.de/records"
+    
+    - name: Deploy Test Application
+      run: |
+        export KUBECONFIG=$GITHUB_WORKSPACE/terraform/kubeconfig
+        echo "Deploye Testapp..."
+        kubectl apply -f helm/testapp/
+
+  destroy:
+    name: Destroy Infrastructure
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    environment: 
+      name: destruction
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: 1.8.0
+    
+    - name: Terraform Init
+      run: |
+        cd terraform
+        terraform init
+      env:
+        TF_VAR_do_token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+    
+    - name: Terraform Destroy
+      run: |
+        cd terraform
+        terraform destroy -auto-approve
+      env:
+        TF_VAR_do_token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
