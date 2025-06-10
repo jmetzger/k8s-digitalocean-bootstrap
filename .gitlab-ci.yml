@@ -120,12 +120,37 @@ helm:
     - LB_IP=$(kubectl get svc ingress-ingress-nginx-controller -n ingress-nginx -o json --watch | jq -r 'select(.status.loadBalancer.ingress[0].ip != null) | .status.loadBalancer.ingress[0].ip' | head -n 1)
     - echo "LoadBalancer IP: $LB_IP"
     - echo "$LB_IP" > lb_ip.txt
+    - echo "🔍 Prüfe ob Domain app.t3isp.de existiert..."
+    - |
+      DOMAIN_CHECK=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $DIGITALOCEAN_ACCESS_TOKEN" \
+        "https://api.digitalocean.com/v2/domains/app.t3isp.de")
+      
+      if [ "$DOMAIN_CHECK" = "404" ]; then
+        echo "⚠️ Domain app.t3isp.de existiert nicht, erstelle sie..."
+        DOMAIN_CREATE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X POST -H "Content-Type: application/json" \
+          -H "Authorization: Bearer $DIGITALOCEAN_ACCESS_TOKEN" \
+          -d "{\"name\":\"app.t3isp.de\"}" \
+          "https://api.digitalocean.com/v2/domains")
+        
+        DOMAIN_STATUS=$(echo $DOMAIN_CREATE | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
+        if [ "$DOMAIN_STATUS" = "201" ]; then
+          echo "✅ Domain app.t3isp.de erfolgreich erstellt"
+          echo "📋 Nameserver für Delegation:"
+          echo $DOMAIN_CREATE | sed -e 's/HTTPSTATUS\:.*//g' | jq -r '.domain.name_servers[]?' 2>/dev/null || echo "ns1.digitalocean.com, ns2.digitalocean.com, ns3.digitalocean.com"
+        else
+          echo "❌ Fehler beim Erstellen der Domain:"
+          echo $DOMAIN_CREATE | sed -e 's/HTTPSTATUS\:.*//g'
+          exit 1
+        fi
+      else
+        echo "✅ Domain app.t3isp.de existiert bereits"
+      fi
     - echo "Erstelle DNS-Record für *.app.t3isp.de..."
     - |
       DNS_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X POST -H "Content-Type: application/json" \
         -H "Authorization: Bearer $DIGITALOCEAN_ACCESS_TOKEN" \
-        -d "{\"type\":\"A\",\"name\":\"*.app\",\"data\":\"$LB_IP\",\"ttl\":300}" \
-        "https://api.digitalocean.com/v2/domains/t3isp.de/records")
+        -d "{\"type\":\"A\",\"name\":\"*\",\"data\":\"$LB_IP\",\"ttl\":300}" \
+        "https://api.digitalocean.com/v2/domains/app.t3isp.de/records")
       HTTP_STATUS=$(echo $DNS_RESPONSE | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
       DNS_BODY=$(echo $DNS_RESPONSE | sed -e 's/HTTPSTATUS\:.*//g')
       if [ "$HTTP_STATUS" -eq 201 ] || [ "$HTTP_STATUS" -eq 200 ]; then
