@@ -13,6 +13,10 @@ concurrency:
   group: k8s-read-only-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  actions: write
+
 jobs:
   kubectl:
     name: Execute kubectl command

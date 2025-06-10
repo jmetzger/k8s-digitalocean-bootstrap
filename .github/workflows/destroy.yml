@@ -12,6 +12,10 @@ concurrency:
   group: k8s-deployment-${{ github.ref }}
   cancel-in-progress: false
 
+permissions:
+  contents: read
+  actions: write
+
 env:
   TF_ROOT: terraform
 
