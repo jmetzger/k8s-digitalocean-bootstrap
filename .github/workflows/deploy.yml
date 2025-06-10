@@ -36,7 +36,23 @@ jobs:
     - name: Terraform Apply
       run: |
         cd $TF_ROOT
-        terraform apply -auto-approve
+        if ! terraform apply -auto-approve; then
+          echo "⚠️ Terraform apply failed, checking if cluster already exists..."
+          CLUSTER_ID=$(curl -s -H "Authorization: Bearer ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}" \
+            "https://api.digitalocean.com/v2/kubernetes/clusters" | \
+            jq -r '.kubernetes_clusters[] | select(.name=="gitlab-cluster") | .id')
+          
+          if [ -n "$CLUSTER_ID" ] && [ "$CLUSTER_ID" != "null" ]; then
+            echo "📥 Found existing cluster with ID: $CLUSTER_ID"
+            echo "🔄 Importing cluster into Terraform state..."
+            terraform import digitalocean_kubernetes_cluster.main $CLUSTER_ID
+            echo "✅ Import successful, running terraform apply again..."
+            terraform apply -auto-approve
+          else
+            echo "❌ No existing cluster found, terraform apply failed for other reasons"
+            exit 1
+          fi
+        fi
       env:
         TF_VAR_do_token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
     
