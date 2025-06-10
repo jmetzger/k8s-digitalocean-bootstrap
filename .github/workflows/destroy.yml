@@ -35,31 +35,29 @@ jobs:
     - name: Set Kubernetes Version (for state consistency)
       run: |
         cd $TF_ROOT
-        # Install doctl to get available versions
-        curl -sL https://github.com/digitalocean/doctl/releases/download/v1.104.0/doctl-1.104.0-linux-amd64.tar.gz | tar -xzv
-        sudo mv doctl /usr/local/bin
-        doctl auth init -t ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+        echo "🔍 Determining Kubernetes version for consistent state..."
         
-        # Get available versions and use stored or find fallback
-        AVAILABLE_VERSIONS=$(doctl kubernetes options versions -o json | jq -r '.[].slug')
+        # First try to get version from existing cluster
+        CLUSTER_VERSION=""
+        CLUSTER_ID=$(curl -s -H "Authorization: Bearer ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}" \
+          "https://api.digitalocean.com/v2/kubernetes/clusters" | \
+          jq -r '.kubernetes_clusters[] | select(.name=="gitlab-cluster") | .version')
         
-        if [ -n "${{ vars.KUBECONFIG_B64 }}" ]; then
-          echo "📦 Using kubeconfig to determine cluster version..."
-          mkdir -p terraform
-          echo "${{ vars.KUBECONFIG_B64 }}" | base64 -d > terraform/kubeconfig
-          # Try to get cluster info, but don't fail if cluster is already gone
-          CLUSTER_VERSION=$(kubectl version --short 2>/dev/null | grep "Server Version" | cut -d' ' -f3 | sed 's/v//' || echo "")
-          if [ -n "$CLUSTER_VERSION" ]; then
-            # Find matching DO version
-            SELECTED_VERSION=$(echo "$AVAILABLE_VERSIONS" | grep "$CLUSTER_VERSION" | head -n 1)
-          fi
-        fi
-        
-        if [ -z "$SELECTED_VERSION" ]; then
+        if [ -n "$CLUSTER_ID" ] && [ "$CLUSTER_ID" != "null" ]; then
+          echo "🎯 Found cluster version from DigitalOcean: $CLUSTER_ID"
+          SELECTED_VERSION=$CLUSTER_ID
+        else
+          echo "⚠️ No cluster found, using default version from variables.tf"
           # Fallback to default from variables.tf
           DEFAULT_VERSION=$(grep 'default.*=' terraform/variables.tf | grep -o '"[^"]*"' | tr -d '"')
-          echo "🔄 Using default version: $DEFAULT_VERSION"
+          echo "📦 Default version: $DEFAULT_VERSION"
           SELECTED_VERSION=$DEFAULT_VERSION
+        fi
+        
+        # Ensure we have a version
+        if [ -z "$SELECTED_VERSION" ] || [ "$SELECTED_VERSION" = "null" ]; then
+          echo "❌ Could not determine version, using fallback"
+          SELECTED_VERSION="1.31.3-do.1"
         fi
         
         echo "TF_VAR_k8s_version=$SELECTED_VERSION" >> $GITHUB_ENV
