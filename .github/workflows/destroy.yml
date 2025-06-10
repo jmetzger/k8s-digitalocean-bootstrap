@@ -72,12 +72,41 @@ jobs:
       env:
         TF_VAR_do_token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
     
+    - name: Import Cluster if Needed
+      run: |
+        cd $TF_ROOT
+        echo "🔍 Checking Terraform state and cluster existence..."
+        
+        # Check if cluster exists in Terraform state
+        if terraform state list | grep -q "digitalocean_kubernetes_cluster.main"; then
+          echo "✅ Cluster found in Terraform state"
+        else
+          echo "⚠️ Cluster not found in Terraform state, checking DigitalOcean..."
+          
+          # Check if cluster exists in DigitalOcean
+          CLUSTER_ID=$(curl -s -H "Authorization: Bearer ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}" \
+            "https://api.digitalocean.com/v2/kubernetes/clusters" | \
+            jq -r '.kubernetes_clusters[] | select(.name=="gitlab-cluster") | .id')
+          
+          if [ -n "$CLUSTER_ID" ] && [ "$CLUSTER_ID" != "null" ]; then
+            echo "📥 Found existing cluster in DigitalOcean: $CLUSTER_ID"
+            echo "🔄 Importing cluster into Terraform state..."
+            terraform import digitalocean_kubernetes_cluster.main $CLUSTER_ID
+            echo "✅ Import completed"
+          else
+            echo "ℹ️ No cluster named 'gitlab-cluster' found in DigitalOcean"
+            echo "✅ Nothing to destroy"
+          fi
+        fi
+      env:
+        TF_VAR_do_token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+    
     - name: Show Infrastructure to be Destroyed
       run: |
         cd $TF_ROOT
         echo "🔍 Infrastructure that will be DESTROYED:"
         echo "=========================================="
-        terraform plan -destroy -no-color || echo "⚠️ Plan failed - infrastructure might already be gone"
+        terraform plan -destroy -no-color || echo "ℹ️ No infrastructure found to destroy"
         echo "=========================================="
       env:
         TF_VAR_do_token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
@@ -86,8 +115,30 @@ jobs:
       run: |
         cd $TF_ROOT
         echo "💥 DESTROYING infrastructure..."
-        terraform destroy -auto-approve
-        echo "✅ Infrastructure destroyed successfully"
+        
+        # Check if there's anything to destroy
+        if terraform state list | grep -q "digitalocean_kubernetes_cluster.main"; then
+          terraform destroy -auto-approve
+          echo "✅ Infrastructure destroyed successfully"
+        else
+          echo "ℹ️ No infrastructure found in Terraform state"
+          echo "🔍 Checking for orphaned resources in DigitalOcean..."
+          
+          # Try to destroy cluster directly via API if it exists
+          CLUSTER_ID=$(curl -s -H "Authorization: Bearer ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}" \
+            "https://api.digitalocean.com/v2/kubernetes/clusters" | \
+            jq -r '.kubernetes_clusters[] | select(.name=="gitlab-cluster") | .id')
+          
+          if [ -n "$CLUSTER_ID" ] && [ "$CLUSTER_ID" != "null" ]; then
+            echo "🗑️ Found orphaned cluster, deleting via API..."
+            curl -X DELETE \
+              -H "Authorization: Bearer ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}" \
+              "https://api.digitalocean.com/v2/kubernetes/clusters/$CLUSTER_ID"
+            echo "✅ Orphaned cluster deleted"
+          else
+            echo "✅ No orphaned resources found"
+          fi
+        fi
       env:
         TF_VAR_do_token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
     
