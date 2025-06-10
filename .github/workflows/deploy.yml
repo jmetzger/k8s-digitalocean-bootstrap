@@ -158,7 +158,7 @@ jobs:
         fi
       env:
         TF_VAR_do_token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
-        GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        GH_TOKEN: ${{ secrets.GH_PAT }}
 
   helm:
     name: Deploy Helm Charts
