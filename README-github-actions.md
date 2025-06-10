@@ -52,3 +52,4 @@ Die GitHub Actions Pipeline besteht aus 3 Jobs:
 3. Nach erfolgreichem Deployment ist die App verfügbar unter: `https://test.auto.do.t3isp.de`
 
 <!-- Automatisierte DigitalOcean Kubernetes Deployment Pipeline mit GitHub Actions -->
+<!-- Test: Pipeline triggert automatisch bei Code-Änderungen -->
