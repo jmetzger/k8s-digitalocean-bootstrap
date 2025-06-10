@@ -150,8 +150,8 @@ jobs:
           "${{ github.api_url }}/repos/${{ github.repository }}/actions/variables/KUBECONFIG_B64" || echo "Variable already deleted or doesn't exist"
         echo "✅ Cleanup completed"
 
-  confirmation_failed:
-    name: Destroy Confirmation Failed
+  confirmation_check:
+    name: Destroy Confirmation Check
     runs-on: ubuntu-latest
     if: github.event.inputs.confirm_destroy != 'DESTROY'
     
