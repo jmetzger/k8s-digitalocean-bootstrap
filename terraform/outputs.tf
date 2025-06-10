@@ -1,5 +1,5 @@
 output "ingress_domain" {
-  value = "auto.do.t3isp.de"
+  value = "app.t3isp.de"
 }
 
 output "kubeconfig" {

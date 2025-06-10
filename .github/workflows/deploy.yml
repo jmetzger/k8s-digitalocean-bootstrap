@@ -161,10 +161,10 @@ jobs:
           exit 1
         fi
         
-        echo "Erstelle DNS-Record für *.auto.do.t3isp.de..."
+        echo "Erstelle DNS-Record für *.app.t3isp.de..."
         DNS_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X POST -H "Content-Type: application/json" \
           -H "Authorization: Bearer ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}" \
-          -d "{\"type\":\"A\",\"name\":\"*.auto\",\"data\":\"$LB_IP\",\"ttl\":300}" \
+          -d "{\"type\":\"A\",\"name\":\"*.app\",\"data\":\"$LB_IP\",\"ttl\":300}" \
           "https://api.digitalocean.com/v2/domains/t3isp.de/records")
         
         HTTP_STATUS=$(echo $DNS_RESPONSE | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')

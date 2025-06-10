@@ -80,11 +80,11 @@ helm:
     - LB_IP=$(kubectl get svc ingress-ingress-nginx-controller -n ingress-nginx -o json --watch | jq -r 'select(.status.loadBalancer.ingress[0].ip != null) | .status.loadBalancer.ingress[0].ip' | head -n 1)
     - echo "LoadBalancer IP: $LB_IP"
     - echo "$LB_IP" > lb_ip.txt
-    - echo "Erstelle DNS-Record für *.auto.do.t3isp.de..."
+    - echo "Erstelle DNS-Record für *.app.t3isp.de..."
     - |
       DNS_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X POST -H "Content-Type: application/json" \
         -H "Authorization: Bearer $DIGITALOCEAN_ACCESS_TOKEN" \
-        -d "{\"type\":\"A\",\"name\":\"*.auto\",\"data\":\"$LB_IP\",\"ttl\":300}" \
+        -d "{\"type\":\"A\",\"name\":\"*.app\",\"data\":\"$LB_IP\",\"ttl\":300}" \
         "https://api.digitalocean.com/v2/domains/t3isp.de/records")
       HTTP_STATUS=$(echo $DNS_RESPONSE | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
       DNS_BODY=$(echo $DNS_RESPONSE | sed -e 's/HTTPSTATUS\:.*//g')

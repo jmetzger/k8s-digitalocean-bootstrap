@@ -9,10 +9,10 @@ metadata:
 spec:
   tls:
   - hosts:
-    - test.auto.do.t3isp.de
+    - test.app.t3isp.de
     secretName: testapp-tls
   rules:
-  - host: test.auto.do.t3isp.de
+  - host: test.app.t3isp.de
     http:
       paths:
       - path: /

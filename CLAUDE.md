@@ -16,9 +16,9 @@ The deployment follows this sequence:
 1. Terraform creates a 1-node k8s cluster (s-2vcpu-2gb nodes)
 2. Helm installs ingress-nginx controller with LoadBalancer service
 3. Helm installs cert-manager with CRDs for Let's Encrypt certificates
-4. Test application is deployed with TLS-secured ingress at `test.auto.do.t3isp.de`
+4. Test application is deployed with TLS-secured ingress at `test.app.t3isp.de`
 
-Domain setup expects wildcard DNS `*.auto.do.t3isp.de` pointing to the LoadBalancer IP.
+Domain setup expects wildcard DNS `*.app.t3isp.de` pointing to the LoadBalancer IP.
 
 ## Common Commands
 

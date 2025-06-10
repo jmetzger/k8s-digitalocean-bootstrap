@@ -5,7 +5,7 @@ metadata:
 spec:
   acme:
     server: https://acme-v02.api.letsencrypt.org/directory
-    email: admin@do.t3isp.de
+    email: admin@t3isp.de
     privateKeySecretRef:
       name: letsencrypt-http-private-key
     solvers:
