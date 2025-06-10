@@ -290,32 +290,3 @@ jobs:
         echo "Deploye Testapp..."
         kubectl apply -f manifests/testapp/
 
-  destroy:
-    name: Destroy Infrastructure
-    runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch'
-    environment: 
-      name: destruction
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v3
-      with:
-        terraform_version: 1.8.0
-    
-    - name: Terraform Init
-      run: |
-        cd terraform
-        terraform init
-      env:
-        TF_VAR_do_token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
-    
-    - name: Terraform Destroy
-      run: |
-        cd terraform
-        terraform destroy -auto-approve
-      env:
-        TF_VAR_do_token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
