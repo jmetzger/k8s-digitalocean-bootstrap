@@ -66,6 +66,8 @@ helm:
         echo "Response: $DNS_BODY"
         exit 1
       fi
+    - echo "Erstelle Testapp Namespace..."
+    - kubectl create namespace testapp --dry-run=client -o yaml | kubectl apply -f -
     - echo "Deploye Testapp..."
     - kubectl apply -f helm/testapp/
   needs: ["terraform"]
