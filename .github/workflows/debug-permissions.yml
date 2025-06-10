@@ -25,7 +25,7 @@ jobs:
         echo ""
         
         echo "📋 Repository information:"
-        REPO_INFO=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+        REPO_INFO=$(curl -s -H "Authorization: Bearer ${{ secrets.GH_TOKEN }}" \
           "${{ github.api_url }}/repos/${{ github.repository }}")
         
         echo "  Name: $(echo "$REPO_INFO" | jq -r '.name // "unknown"')"
@@ -42,7 +42,7 @@ jobs:
         echo "📖 1. Testing READ access (list variables):"
         READ_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" \
           -H "Accept: application/vnd.github.v3+json" \
-          -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+          -H "Authorization: Bearer ${{ secrets.GH_TOKEN }}" \
           "${{ github.api_url }}/repos/${{ github.repository }}/actions/variables")
         
         READ_CODE=$(echo "$READ_RESPONSE" | sed -n 's/.*HTTPSTATUS:\([0-9]*\)$/\1/p')
@@ -62,7 +62,7 @@ jobs:
         TEST_VALUE="test-$(date +%s)"
         WRITE_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X POST \
           -H "Accept: application/vnd.github.v3+json" \
-          -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+          -H "Authorization: Bearer ${{ secrets.GH_TOKEN }}" \
           "${{ github.api_url }}/repos/${{ github.repository }}/actions/variables" \
           -d "{\"name\":\"TEST_VARIABLE\",\"value\":\"$TEST_VALUE\"}")
         
@@ -84,7 +84,7 @@ jobs:
           UPDATE_VALUE="updated-$(date +%s)"
           UPDATE_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X PATCH \
             -H "Accept: application/vnd.github.v3+json" \
-            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Authorization: Bearer ${{ secrets.GH_TOKEN }}" \
             "${{ github.api_url }}/repos/${{ github.repository }}/actions/variables/TEST_VARIABLE" \
             -d "{\"name\":\"TEST_VARIABLE\",\"value\":\"$UPDATE_VALUE\"}")
           
@@ -107,7 +107,7 @@ jobs:
         if [ "$WRITE_CODE" = "201" ]; then
           DELETE_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X DELETE \
             -H "Accept: application/vnd.github.v3+json" \
-            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Authorization: Bearer ${{ secrets.GH_TOKEN }}" \
             "${{ github.api_url }}/repos/${{ github.repository }}/actions/variables/TEST_VARIABLE")
           
           DELETE_CODE=$(echo "$DELETE_RESPONSE" | sed -n 's/.*HTTPSTATUS:\([0-9]*\)$/\1/p')
@@ -128,7 +128,7 @@ jobs:
         echo "🔧 Testing gh CLI access..."
         echo ""
         
-        export GH_TOKEN="${{ secrets.GITHUB_TOKEN }}"
+        export GH_TOKEN="${{ secrets.GH_TOKEN }}"
         
         echo "📦 gh CLI version:"
         gh --version || echo "  gh CLI not available"

@@ -152,14 +152,14 @@ jobs:
         # Check if variable already exists (try without API version first)
         VARIABLE_EXISTS=$(curl -s -o /dev/null -w "%{http_code}" \
           -H "Accept: application/vnd.github.v3+json" \
-          -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+          -H "Authorization: Bearer ${{ secrets.GH_TOKEN }}" \
           "${{ github.api_url }}/repos/${{ github.repository }}/actions/variables/KUBECONFIG_B64")
         
         if [ "$VARIABLE_EXISTS" = "200" ]; then
           echo "🔄 Updating existing KUBECONFIG_B64 variable..."
           curl -s -X PATCH \
             -H "Accept: application/vnd.github.v3+json" \
-            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Authorization: Bearer ${{ secrets.GH_TOKEN }}" \
             "${{ github.api_url }}/repos/${{ github.repository }}/actions/variables/KUBECONFIG_B64" \
             -d "{\"name\":\"KUBECONFIG_B64\",\"value\":\"$KUBECONFIG_CONTENT\"}" \
             || echo "❌ PATCH failed"
@@ -167,7 +167,7 @@ jobs:
           echo "🆕 Creating new KUBECONFIG_B64 variable..."
           RESPONSE=$(curl -s -X POST \
             -H "Accept: application/vnd.github.v3+json" \
-            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Authorization: Bearer ${{ secrets.GH_TOKEN }}" \
             "${{ github.api_url }}/repos/${{ github.repository }}/actions/variables" \
             -d "{\"name\":\"KUBECONFIG_B64\",\"value\":\"$KUBECONFIG_CONTENT\"}")
           
