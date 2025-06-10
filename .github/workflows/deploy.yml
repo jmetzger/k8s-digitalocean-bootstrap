@@ -124,10 +124,22 @@ jobs:
         fi
         
         echo "Erstelle DNS-Record für *.auto.do.t3isp.de..."
-        curl -X POST -H "Content-Type: application/json" \
+        DNS_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X POST -H "Content-Type: application/json" \
           -H "Authorization: Bearer ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}" \
           -d "{\"type\":\"A\",\"name\":\"*.auto\",\"data\":\"$LB_IP\",\"ttl\":300}" \
-          "https://api.digitalocean.com/v2/domains/t3isp.de/records"
+          "https://api.digitalocean.com/v2/domains/t3isp.de/records")
+        
+        HTTP_STATUS=$(echo $DNS_RESPONSE | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
+        DNS_BODY=$(echo $DNS_RESPONSE | sed -e 's/HTTPSTATUS\:.*//g')
+        
+        if [ "$HTTP_STATUS" -eq 201 ] || [ "$HTTP_STATUS" -eq 200 ]; then
+          echo "✅ DNS-Record erfolgreich erstellt: $DNS_BODY"
+        else
+          echo "❌ Fehler beim Erstellen des DNS-Records!"
+          echo "HTTP Status: $HTTP_STATUS"
+          echo "Response: $DNS_BODY"
+          exit 1
+        fi
     
     - name: Deploy Test Application
       run: |
