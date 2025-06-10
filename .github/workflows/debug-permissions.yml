@@ -3,7 +3,9 @@ name: Debug GitHub Token Permissions
 on:
   workflow_dispatch:
 
-permissions: write-all
+permissions:
+  contents: read
+  actions: write
 
 jobs:
   debug-permissions:
