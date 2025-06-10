@@ -16,7 +16,7 @@ provider "digitalocean" {
 resource "digitalocean_kubernetes_cluster" "main" {
   name    = "gitlab-cluster"
   region  = "fra1"
-  version = "latest"
+  version = var.k8s_version
 
   node_pool {
     name       = "default-pool"

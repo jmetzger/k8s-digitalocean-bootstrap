@@ -18,6 +18,19 @@ terraform:
     - cd $TF_ROOT
     - terraform init
     - |
+      if [ "$UPGRADE_K8S" = "true" ]; then
+        echo "🔄 Fetching latest Kubernetes version..."
+        apk add curl jq
+        curl -sL https://github.com/digitalocean/doctl/releases/download/v1.104.0/doctl-1.104.0-linux-amd64.tar.gz | tar -xzv
+        mv doctl /usr/local/bin
+        doctl auth init -t $DIGITALOCEAN_ACCESS_TOKEN
+        LATEST_VERSION=$(doctl kubernetes options versions -o json | jq -r '.[0].slug')
+        echo "📦 Latest K8s version: $LATEST_VERSION"
+        export TF_VAR_k8s_version=$LATEST_VERSION
+      else
+        echo "📌 Using default Kubernetes version from variables.tf"
+      fi
+    - |
       if ! terraform apply -auto-approve; then
         echo "⚠️ Terraform apply failed, checking if cluster already exists..."
         CLUSTER_ID=$(curl -s -H "Authorization: Bearer $DIGITALOCEAN_ACCESS_TOKEN" \

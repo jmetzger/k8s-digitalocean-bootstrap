@@ -4,6 +4,12 @@ on:
   push:
     branches: [ main ]
   workflow_dispatch:
+    inputs:
+      upgrade_k8s:
+        description: 'Upgrade to latest Kubernetes version'
+        required: false
+        default: 'false'
+        type: boolean
 
 env:
   TF_ROOT: terraform
@@ -32,6 +38,22 @@ jobs:
         terraform init
       env:
         TF_VAR_do_token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+    
+    - name: Set Kubernetes Version
+      run: |
+        cd $TF_ROOT
+        if [ "${{ github.event.inputs.upgrade_k8s }}" = "true" ]; then
+          echo "🔄 Fetching latest Kubernetes version..."
+          # Install doctl if not available
+          curl -sL https://github.com/digitalocean/doctl/releases/download/v1.104.0/doctl-1.104.0-linux-amd64.tar.gz | tar -xzv
+          sudo mv doctl /usr/local/bin
+          doctl auth init -t ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+          LATEST_VERSION=$(doctl kubernetes options versions -o json | jq -r '.[0].slug')
+          echo "📦 Latest K8s version: $LATEST_VERSION"
+          echo "TF_VAR_k8s_version=$LATEST_VERSION" >> $GITHUB_ENV
+        else
+          echo "📌 Using default Kubernetes version from variables.tf"
+        fi
     
     - name: Terraform Apply
       run: |
