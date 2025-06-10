@@ -1,0 +1,103 @@
+name: Deploy Helm Charts Only
+
+on:
+  workflow_dispatch:
+
+env:
+  HELM_ROOT: helm/ingress
+
+jobs:
+  helm:
+    name: Deploy Helm Charts
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Kubeconfig
+      run: |
+        mkdir -p terraform
+        if [ -n "${{ vars.KUBECONFIG_B64 }}" ]; then
+          echo "📦 Using stored kubeconfig from repository variables..."
+          echo "${{ vars.KUBECONFIG_B64 }}" | base64 -d > terraform/kubeconfig
+        else
+          echo "❌ No stored kubeconfig found! Run full deployment first."
+          exit 1
+        fi
+    
+    - name: Setup Helm
+      uses: azure/setup-helm@v4
+      with:
+        version: 'latest'
+    
+    - name: Setup kubectl
+      uses: azure/setup-kubectl@v4
+      with:
+        version: 'latest'
+    
+    - name: Deploy Ingress Controller
+      run: |
+        export KUBECONFIG=$GITHUB_WORKSPACE/terraform/kubeconfig
+        helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+        helm repo add jetstack https://charts.jetstack.io
+        helm repo update
+        helm upgrade --install ingress ingress-nginx/ingress-nginx \
+          --namespace ingress-nginx --create-namespace \
+          -f $HELM_ROOT/values.yaml
+    
+    - name: Deploy Cert-Manager
+      run: |
+        export KUBECONFIG=$GITHUB_WORKSPACE/terraform/kubeconfig
+        helm upgrade --install cert-manager jetstack/cert-manager \
+          --namespace cert-manager --create-namespace \
+          -f helm/cert-manager-values.yaml
+    
+    - name: Wait for LoadBalancer and Create DNS Record
+      run: |
+        export KUBECONFIG=$GITHUB_WORKSPACE/terraform/kubeconfig
+        echo "Warte auf LoadBalancer-IP..."
+        
+        # Wait for LoadBalancer IP (max 5 minutes)
+        timeout=300
+        while [ $timeout -gt 0 ]; do
+          LB_IP=$(kubectl get svc ingress-ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
+          if [ -n "$LB_IP" ] && [ "$LB_IP" != "null" ]; then
+            echo "LoadBalancer IP: $LB_IP"
+            break
+          fi
+          echo "Waiting for LoadBalancer IP... ($timeout seconds remaining)"
+          sleep 10
+          timeout=$((timeout-10))
+        done
+        
+        if [ -z "$LB_IP" ] || [ "$LB_IP" = "null" ]; then
+          echo "Error: LoadBalancer IP not available after timeout"
+          exit 1
+        fi
+        
+        echo "Erstelle DNS-Record für *.app.t3isp.de..."
+        DNS_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X POST -H "Content-Type: application/json" \
+          -H "Authorization: Bearer ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}" \
+          -d "{\"type\":\"A\",\"name\":\"*.app\",\"data\":\"$LB_IP\",\"ttl\":300}" \
+          "https://api.digitalocean.com/v2/domains/t3isp.de/records")
+        
+        HTTP_STATUS=$(echo $DNS_RESPONSE | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
+        DNS_BODY=$(echo $DNS_RESPONSE | sed -e 's/HTTPSTATUS\:.*//g')
+        
+        if [ "$HTTP_STATUS" -eq 201 ] || [ "$HTTP_STATUS" -eq 200 ]; then
+          echo "✅ DNS-Record erfolgreich erstellt: $DNS_BODY"
+        else
+          echo "❌ Fehler beim Erstellen des DNS-Records!"
+          echo "HTTP Status: $HTTP_STATUS"
+          echo "Response: $DNS_BODY"
+          exit 1
+        fi
+    
+    - name: Deploy Test Application
+      run: |
+        export KUBECONFIG=$GITHUB_WORKSPACE/terraform/kubeconfig
+        echo "Erstelle Testapp Namespace..."
+        kubectl create namespace testapp --dry-run=client -o yaml | kubectl apply -f -
+        echo "Deploye Testapp..."
+        kubectl apply -f manifests/testapp/
